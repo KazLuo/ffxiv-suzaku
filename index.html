@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>FFXIV 幻朱雀：火鳥巡航 & 傀儡連線模擬器 (終極美學版)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+TC:wght@600;900&display=swap');
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #1f0a0a 0%, #050202 100%);
+            color: #f0e6d2;
+            font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-family: 'Cinzel', 'Noto Serif TC', serif;
+            margin: 0 0 5px 0;
+            color: #ffaa33;
+            text-shadow: 0 0 12px rgba(255, 120, 0, 0.8), 0 0 25px rgba(255, 50, 0, 0.5);
+            letter-spacing: 2px;
+            font-size: 26px;
+        }
+
+        #status-card {
+            background: linear-gradient(180deg, rgba(35, 15, 15, 0.95) 0%, rgba(10, 5, 5, 0.95) 100%);
+            border: 1px solid #c8a050;
+            box-shadow: inset 0 0 10px rgba(200, 160, 80, 0.3), 0 4px 20px rgba(0,0,0,0.9);
+            border-radius: 4px;
+            padding: 10px 30px;
+            margin: 10px 0 15px 0;
+            min-width: 480px;
+            text-align: center;
+        }
+
+        #status-text {
+            font-size: 18px;
+            font-weight: 900;
+            color: #ffe8b3;
+            text-shadow: 0 0 8px rgba(255, 200, 100, 0.6);
+        }
+
+        #game-container {
+            position: relative;
+            padding: 10px;
+            background: #0d0606;
+            border: 2px solid #9e7d3b;
+            border-radius: 50%;
+            box-shadow: 0 0 35px rgba(255, 60, 0, 0.4), inset 0 0 25px rgba(0, 0, 0, 0.9);
+        }
+
+        canvas {
+            background-color: #050202;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .controls {
+            margin-top: 18px;
+            display: flex;
+            gap: 20px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-family: 'Cinzel', 'Noto Serif TC', serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff0d0;
+            background: linear-gradient(180deg, #992900 0%, #4d1000 100%);
+            border: 1px solid #e0a030;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
+            transition: all 0.2s ease;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        button:hover {
+            background: linear-gradient(180deg, #c43300 0%, #701700 100%);
+            border-color: #ffd700;
+            box-shadow: 0 0 18px rgba(255, 120, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.5);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .instructions {
+            max-width: 640px;
+            margin-top: 18px;
+            background: rgba(15, 8, 8, 0.9);
+            border: 1px solid #5a4018;
+            padding: 12px 22px;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #d0c0a0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .instructions h3 {
+            margin: 0 0 5px 0;
+            color: #ffaa33;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>朱雀征魂戰 (SUZAKU UNREAL SIM)</h1>
+    
+    <div id="status-card">
+        <div id="status-text">請選擇模式開始模擬練習</div>
+    </div>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="600" height="560"></canvas>
+    </div>
+
+    <div class="controls">
+        <button onclick="startMode('normal')">模式一：純看字橫跳</button>
+        <button onclick="startMode('puppet')">模式二：看字 + 傀儡連線 (完整機制)</button>
+    </div>
+
+    <div class="instructions">
+        <h3>⚔️ 視覺與機制特色說明：</h3>
+        <ul>
+            <li><b>火鳥巡航全同步：</b>模式一與模式二皆完美還原火鳥沿著弧形軌道平滑飛行、<b>即時碰撞符文引爆</b>的視覺效果。</li>
+            <li><b>FF14 典雅視覺：</b>粒子噴濺火花、高質感黑金圖騰地圖與 1:1 跑速比例 (無疾跑 6.0yd/s)。</li>
+            <li><b>傀儡逃課技巧：</b>貼緊中央死區邊緣，將頭頂位移箭頭指向預定安全區即可精準逃課！</li>
+        </ul>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const statusText = document.getElementById('status-text');
+
+const CENTER_X = 300;
+const CENTER_Y = 280;
+
+// 【1:1 遊戲尺寸比例】1 Yard = 12.67 px
+const RADIUS = 190;      // 15 yards (全場直徑 30 yards)
+const INNER_HOLE = 50.6; // 4 yards (圓洞直徑 8 yards)
+
+let player = { x: 300, y: 170, radius: 7, speed: 1.27 }; 
+let keys = {};
+let baseChars = ['之', '向', '十', '水'];
+let quadChars = []; 
+let leftRunes = [];
+let rightRunes = [];
+let activeSide = 'left';
+
+// 火鳥動態參數
+let bird = {
+    x: 0,
+    y: 0,
+    progress: 0,
+    speed: 0.0018,
+    active: false,
+    direction: 1
+};
+
+// 粒子特效系統
+let particles = [];
+
+let isPlaying = false;
+let streak = 0;
+let explodedQuads = [false, false, false, false];
+let currentMode = 'normal';
+
+// 傀儡位移變數
+let puppetActive = false;
+let puppetArrow = '';
+let puppetCountdown = 0;
+let puppetTimer = null;
+
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function generate4GroupChars() {
+    let group1 = [...baseChars].sort(() => Math.random() - 0.5);
+    let group2 = [...baseChars].sort(() => Math.random() - 0.5);
+    return [...group1, ...group2];
+}
+
+function createFireParticles(x, y, count) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 3,
+            vy: (Math.random() - 0.5) * 3,
+            life: 1,
+            decay: Math.random() * 0.04 + 0.02,
+            size: Math.random() * 4 + 2,
+            color: Math.random() > 0.3 ? '#ff4500' : '#ffea00'
+        });
+    }
+}
+
+function startMode(mode) {
+    currentMode = mode;
+    isPlaying = true;
+    player.x = CENTER_X;
+    player.y = CENTER_Y - 110;
+    explodedQuads = [false, false, false, false];
+    particles = [];
+    
+    quadChars = [...baseChars].sort(() => Math.random() - 0.5);
+    
+    let leftChars = generate4GroupChars();
+    leftRunes = [];
+    for (let i = 0; i < 8; i++) {
+        let t = (i / 7) - 0.5;
+        let angle = Math.PI - (t * 0.8);
+        leftRunes.push({
+            char: leftChars[i],
+            x: CENTER_X + Math.cos(angle) * 250,
+            y: CENTER_Y + Math.sin(angle) * 230,
+            angle: angle,
+            active: false,
+            triggered: false
+        });
+    }
+
+    let rightChars = generate4GroupChars();
+    rightRunes = [];
+    for (let i = 0; i < 8; i++) {
+        let t = (i / 7) - 0.5;
+        let angle = 0 + (t * 0.8);
+        rightRunes.push({
+            char: rightChars[i],
+            x: CENTER_X + Math.cos(angle) * 250,
+            y: CENTER_Y + Math.sin(angle) * 230,
+            angle: angle,
+            active: false,
+            triggered: false
+        });
+    }
+
+    activeSide = Math.random() > 0.5 ? 'left' : 'right';
+    bird.direction = Math.random() > 0.5 ? 1 : -1;
+    bird.progress = bird.direction === 1 ? 0 : 1;
+    bird.active = true;
+    
+    if (puppetTimer) clearInterval(puppetTimer);
+
+    if (mode === 'puppet') {
+        setupPuppetMechanism();
+    } else {
+        puppetActive = false;
+        statusText.innerText = "觀察火鳥飛過符文的順序，預判橫跳！";
+    }
+}
+
+function setupPuppetMechanism() {
+    puppetActive = true;
+    const arrows = ['⬆', '⬇', '⬅', '➡'];
+    const arrowTypes = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+    let idx = Math.floor(Math.random() * 4);
+    puppetArrow = arrowTypes[idx];
+    puppetCountdown = 5;
+
+    statusText.innerText = `傀儡の旋律！位移【 ${arrows[idx]} 】倒數 5 秒！貼緊中場洞邊！`;
+
+    puppetTimer = setInterval(() => {
+        puppetCountdown--;
+        if (puppetCountdown > 0) {
+            statusText.innerText = `傀儡の旋律！位移【 ${arrows[idx]} 】倒數 ${puppetCountdown} 秒！`;
+        } else {
+            clearInterval(puppetTimer);
+            executePuppetDash();
+        }
+    }, 1000);
+}
+
+function executePuppetDash() {
+    if (!isPlaying) return;
+    statusText.innerText = "💥 傀儡強制位移發動！";
+    let dashDistance = 115;
+    
+    let interval = setInterval(() => {
+        let step = 2.4; 
+        if (dashDistance <= 0) {
+            clearInterval(interval);
+            return;
+        }
+        if (puppetArrow === 'UP') player.y -= step;
+        if (puppetArrow === 'DOWN') player.y += step;
+        if (puppetArrow === 'LEFT') player.x -= step;
+        if (puppetArrow === 'RIGHT') player.x += step;
+        dashDistance -= step;
+    }, 16);
+}
+
+function updateBirdAndCollisions() {
+    if (!isPlaying || !bird.active) return;
+
+    if (bird.direction === 1) {
+        bird.progress += bird.speed;
+        if (bird.progress >= 1) {
+            bird.active = false;
+            finishRound();
+            return;
+        }
+    } else {
+        bird.progress -= bird.speed;
+        if (bird.progress <= 0) {
+            bird.active = false;
+            finishRound();
+            return;
+        }
+    }
+
+    let t = bird.progress - 0.5;
+    let currentAngle = activeSide === 'left' ? (Math.PI - (t * 0.8)) : (0 + (t * 0.8));
+    bird.x = CENTER_X + Math.cos(currentAngle) * 250;
+    bird.y = CENTER_Y + Math.sin(currentAngle) * 230;
+
+    // 飛行過程產生微量火焰粒子
+    if (Math.random() > 0.4) {
+        createFireParticles(bird.x, bird.y, 1);
+    }
+
+    let targetRunes = activeSide === 'left' ? leftRunes : rightRunes;
+    targetRunes.forEach(rune => {
+        if (!rune.triggered) {
+            let dx = bird.x - rune.x;
+            let dy = bird.y - rune.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 18) {
+                rune.triggered = true;
+                rune.active = true;
+                createFireParticles(rune.x, rune.y, 12); // 撞擊爆發火花
+                
+                let targetQuad = quadChars.indexOf(rune.char);
+                if (targetQuad !== -1) {
+                    setTimeout(() => {
+                        checkExplosionCollision(targetQuad);
+                    }, 250);
+
+                    explodedQuads[targetQuad] = true;
+                    
+                    setTimeout(() => {
+                        explodedQuads[targetQuad] = false;
+                        rune.active = false;
+                    }, 850);
+                }
+            }
+        }
+    });
+}
+
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+function finishRound() {
+    if (isPlaying) {
+        streak++;
+        statusText.innerText = `🎉 成功迴避！連勝紀錄：${streak} 次！`;
+        setTimeout(() => startMode(currentMode), 2500);
+    }
+}
+
+function checkExplosionCollision(quadIndex) {
+    if (!isPlaying) return;
+    let pQuad = getPlayerQuadrant();
+    if (pQuad === quadIndex) {
+        gameOver("💥 踩到「" + quadChars[quadIndex] + "」字地圖爆破，遭朱雀神火擊殺！");
+    }
+}
+
+function getPlayerQuadrant() {
+    let dx = player.x - CENTER_X;
+    let dy = player.y - CENTER_Y;
+    if (Math.sqrt(dx*dx + dy*dy) < INNER_HOLE) return -1;
+    
+    if (dx >= 0 && dy < 0) return 0; // 右上
+    if (dx >= 0 && dy >= 0) return 1; // 右下
+    if (dx < 0 && dy >= 0) return 2; // 左下
+    if (dx < 0 && dy < 0) return 3; // 左上
+}
+
+function updatePlayer() {
+    if (!isPlaying) return;
+    
+    if (keys['w'] || keys['arrowup']) player.y -= player.speed;
+    if (keys['s'] || keys['arrowdown']) player.y += player.speed;
+    if (keys['a'] || keys['arrowleft']) player.x -= player.speed;
+    if (keys['d'] || keys['arrowright']) player.x += player.speed;
+
+    let dist = Math.sqrt((player.x - CENTER_X)**2 + (player.y - CENTER_Y)**2);
+    if (dist > RADIUS - 6) {
+        gameOver("🔥 跌落外圈懸崖！");
+    }
+    
+    if (getPlayerQuadrant() === -1) {
+        gameOver("💀 掉入中央死區深淵！");
+    }
+}
+
+function gameOver(reason) {
+    isPlaying = false;
+    streak = 0;
+    statusText.innerText = reason + " (點擊模式按鈕重試)";
+    if (puppetTimer) clearInterval(puppetTimer);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. 中央 4 個象限地板 (FF14 典雅深色黑金底板)
+    const bgColors = ['#1a1018', '#101a1d', '#1a1d10', '#221212'];
+    const angles = [
+        [1.5 * Math.PI, 2 * Math.PI], // 右上
+        [0, 0.5 * Math.PI],          // 右下
+        [0.5 * Math.PI, Math.PI],    // 左下
+        [Math.PI, 1.5 * Math.PI]     // 左上
+    ];
+
+    for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(CENTER_X, CENTER_Y);
+        ctx.arc(CENTER_X, CENTER_Y, RADIUS, angles[i][0], angles[i][1]);
+        
+        if (explodedQuads[i]) {
+            let fireGrad = ctx.createRadialGradient(CENTER_X, CENTER_Y, 20, CENTER_X, CENTER_Y, RADIUS);
+            fireGrad.addColorStop(0, '#ffff88');
+            fireGrad.addColorStop(0.3, '#ff4500');
+            fireGrad.addColorStop(0.8, '#8b0000');
+            fireGrad.addColorStop(1, 'rgba(100, 0, 0, 0.9)');
+            ctx.fillStyle = fireGrad;
+        } else {
+            ctx.fillStyle = bgColors[i];
+        }
+        
+        ctx.fill();
+        ctx.strokeStyle = '#8b6d31';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        let textAngle = angles[i][0] + Math.PI / 4;
+        let tx = CENTER_X + Math.cos(textAngle) * (RADIUS * 0.55);
+        let ty = CENTER_Y + Math.sin(textAngle) * (RADIUS * 0.55);
+        
+        ctx.save();
+        ctx.shadowColor = explodedQuads[i] ? '#ffffff' : '#ffaa00';
+        ctx.shadowBlur = explodedQuads[i] ? 15 : 8;
+        ctx.fillStyle = explodedQuads[i] ? '#ffffff' : '#ffe8b3';
+        ctx.font = 'bold 38px "Noto Serif TC", serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(quadChars[i] || '', tx, ty);
+        ctx.restore();
+    }
+
+    // 2. 地圖外圍金框與火光邊界
+    ctx.beginPath();
+    ctx.arc(CENTER_X, CENTER_Y, RADIUS, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#c8a050';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ff5500';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 3. 中央黑色死區圓洞
+    ctx.beginPath();
+    ctx.arc(CENTER_X, CENTER_Y, INNER_HOLE, 0, 2 * Math.PI);
+    ctx.fillStyle = '#050202';
+    ctx.fill();
+    ctx.strokeStyle = '#ff2200';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ff2200';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 4. 兩側符文圓圈繪製
+    const drawRunes = (runes) => {
+        runes.forEach(rune => {
+            ctx.beginPath();
+            ctx.arc(rune.x, rune.y, 16, 0, 2 * Math.PI);
+            
+            if (rune.active) {
+                ctx.fillStyle = '#ff3300';
+                ctx.shadowColor = '#ffaa00';
+                ctx.shadowBlur = 18;
+            } else {
+                ctx.fillStyle = '#1a120c';
+                ctx.shadowBlur = 0;
+            }
+            ctx.fill();
+            
+            ctx.strokeStyle = rune.active ? '#ffffaa' : '#8b6d31';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = rune.active ? '#ffffff' : '#c8a050';
+            ctx.font = 'bold 15px "Noto Serif TC", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(rune.char, rune.x, rune.y);
+            ctx.shadowBlur = 0;
+        });
+    };
+
+    drawRunes(leftRunes);
+    drawRunes(rightRunes);
+
+    // 5. 繪製粒子效果
+    particles.forEach(p => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, 2 * Math.PI);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 6. 傀儡連線 (FF14 動態雷光魔力線)
+    if (isPlaying && puppetActive) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(CENTER_X, CENTER_Y);
+        ctx.lineTo(player.x, player.y);
+        ctx.strokeStyle = '#ff00aa';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff00aa';
+        ctx.shadowBlur = 12;
+        ctx.setLineDash([8, 6]);
+        ctx.stroke();
+        ctx.restore();
+
+        let arrowSymbol = { 'UP':'⬆', 'DOWN':'⬇', 'LEFT':'⬅', 'RIGHT':'➡' }[puppetArrow];
+        ctx.save();
+        ctx.shadowColor = '#ff00aa';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 26px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(arrowSymbol, player.x, player.y - 20);
+        ctx.restore();
+    }
+
+    // 7. 金色小火鳥 (帶光暈巡航)
+    if (isPlaying && bird.active) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bird.x, bird.y, 11, 0, 2 * Math.PI);
+        
+        let birdGrad = ctx.createRadialGradient(bird.x, bird.y, 2, bird.x, bird.y, 11);
+        birdGrad.addColorStop(0, '#ffffff');
+        birdGrad.addColorStop(0.5, '#ffea00');
+        birdGrad.addColorStop(1, '#ff3300');
+        
+        ctx.fillStyle = birdGrad;
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 22;
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 8. 玩家 (FF14 戰鬥水藍指示光點)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, 2 * Math.PI);
+    ctx.fillStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    updateBirdAndCollisions();
+    updateParticles();
+    updatePlayer();
+    requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>
