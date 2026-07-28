@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>FFXIV 幻朱雀：火鳥巡航 & 傀儡連線模擬器 (終極美學版)</title>
+    <title>FFXIV 幻朱雀：跳舞機殲滅戰</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+TC:wght@600;900&display=swap');
 
@@ -136,10 +136,10 @@
     </div>
 
     <div class="instructions">
-        <h3>⚔️ 視覺與機制特色說明：</h3>
+        <h3>⚔️ 火鳥進場視覺校正：</h3>
         <ul>
-            <li><b>火鳥巡航全同步：</b>模式一與模式二皆完美還原火鳥沿著弧形軌道平滑飛行、<b>即時碰撞符文引爆</b>的視覺效果。</li>
-            <li><b>FF14 典雅視覺：</b>粒子噴濺火花、高質感黑金圖騰地圖與 1:1 跑速比例 (無疾跑 6.0yd/s)。</li>
+            <li><b>12點 / 6點 進場緩衝：</b>火鳥會從上方 (12點) 或下方 (6點) 生成，並<b>平滑飄向第 1 個符文</b>，給予約 1.8 秒觀測預判時間！</li>
+            <li><b>動態實體碰撞：</b>火鳥撞擊符文時觸發粒子效果並引爆地圖，完全還原副本視覺體感。</li>
             <li><b>傀儡逃課技巧：</b>貼緊中央死區邊緣，將頭頂位移箭頭指向預定安全區即可精準逃課！</li>
         </ul>
     </div>
@@ -164,19 +164,17 @@ let leftRunes = [];
 let rightRunes = [];
 let activeSide = 'left';
 
-// 火鳥動態參數
+// 火鳥動態參數 (包含進場緩衝軌道 -0.15 ~ 1.15)
 let bird = {
     x: 0,
     y: 0,
-    progress: 0,
-    speed: 0.0018,
+    progress: -0.15, // 從 -0.15 (12點/6點處) 開始飄進場
+    speed: 0.0016,   // 微調巡航速度
     active: false,
     direction: 1
 };
 
-// 粒子特效系統
 let particles = [];
-
 let isPlaying = false;
 let streak = 0;
 let explodedQuads = [false, false, false, false];
@@ -254,7 +252,9 @@ function startMode(mode) {
 
     activeSide = Math.random() > 0.5 ? 'left' : 'right';
     bird.direction = Math.random() > 0.5 ? 1 : -1;
-    bird.progress = bird.direction === 1 ? 0 : 1;
+    
+    // 依順時針(1: 12點處進場) / 逆時針(-1: 6點處進場) 設定進場起始 progress
+    bird.progress = bird.direction === 1 ? -0.15 : 1.15;
     bird.active = true;
     
     if (puppetTimer) clearInterval(puppetTimer);
@@ -263,7 +263,7 @@ function startMode(mode) {
         setupPuppetMechanism();
     } else {
         puppetActive = false;
-        statusText.innerText = "觀察火鳥飛過符文的順序，預判橫跳！";
+        statusText.innerText = "🔥 火鳥進場中！速看第一個字預備！";
     }
 }
 
@@ -312,14 +312,14 @@ function updateBirdAndCollisions() {
 
     if (bird.direction === 1) {
         bird.progress += bird.speed;
-        if (bird.progress >= 1) {
+        if (bird.progress >= 1.15) {
             bird.active = false;
             finishRound();
             return;
         }
     } else {
         bird.progress -= bird.speed;
-        if (bird.progress <= 0) {
+        if (bird.progress <= -0.15) {
             bird.active = false;
             finishRound();
             return;
@@ -331,7 +331,6 @@ function updateBirdAndCollisions() {
     bird.x = CENTER_X + Math.cos(currentAngle) * 250;
     bird.y = CENTER_Y + Math.sin(currentAngle) * 230;
 
-    // 飛行過程產生微量火焰粒子
     if (Math.random() > 0.4) {
         createFireParticles(bird.x, bird.y, 1);
     }
@@ -346,8 +345,13 @@ function updateBirdAndCollisions() {
             if (dist < 18) {
                 rune.triggered = true;
                 rune.active = true;
-                createFireParticles(rune.x, rune.y, 12); // 撞擊爆發火花
+                createFireParticles(rune.x, rune.y, 12);
                 
+                // 第一個字撞擊後提示語更換
+                if (currentMode === 'normal') {
+                    statusText.innerText = "💥 火鳥撞擊符文！注意連環引爆橫跳！";
+                }
+
                 let targetQuad = quadChars.indexOf(rune.char);
                 if (targetQuad !== -1) {
                     setTimeout(() => {
@@ -532,7 +536,7 @@ function draw() {
     drawRunes(leftRunes);
     drawRunes(rightRunes);
 
-    // 5. 繪製粒子效果
+    // 5. 粒子效果繪製
     particles.forEach(p => {
         ctx.save();
         ctx.beginPath();
@@ -570,7 +574,7 @@ function draw() {
         ctx.restore();
     }
 
-    // 7. 金色小火鳥 (帶光暈巡航)
+    // 7. 金色小火鳥 (帶進場軌道與光暈)
     if (isPlaying && bird.active) {
         ctx.save();
         ctx.beginPath();
