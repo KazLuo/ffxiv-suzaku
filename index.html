@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>FFXIV 幻朱雀殲滅戰(1.0ver)</title>
+    <title>FFXIV 幻朱雀殲滅戰(1.2ver)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+TC:wght@600;900&display=swap');
 
@@ -138,9 +138,9 @@
     <div class="instructions">
         <h3>⚔️ 真實視覺還原說明：</h3>
         <ul>
-            <li><b>撞擊直出爆破：</b>巡航火鳥撞擊外圈符文瞬間，對應的文字象限地板直接噴發朱雀神火！</li>
+            <li><b>撞擊直出爆破：</b>巡航火鳥撞擊外圈符文瞬間，對應的文字象限地板直接噴發朱雀神火</li>
             <li><b>12/6點鐘前搖進場：</b>火鳥於頂/底端生成滑行進場，時間軸完美對齊遊戲 1.8 秒節奏。</li>
-            <li><b>傀儡逃課技巧：</b>貼緊中央死區邊緣，將頭頂位移箭頭指向預定安全區即可精準過場！</li>
+            <li><b>傀儡逃課技巧：</b><del>貼緊中央死區邊緣，將頭頂位移箭頭指向預定安全區即可精準過場！<del></li>
         </ul>
     </div>
 
@@ -185,6 +185,11 @@ let puppetActive = false;
 let puppetArrow = '';
 let puppetCountdown = 0;
 let puppetTimer = null;
+
+// 防護 DOM-based XSS 的純文字輔助更新函式 [SECURITY REFACTOR]
+function setSafeStatusText(str) {
+    statusText.textContent = String(str);
+}
 
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -253,7 +258,6 @@ function startMode(mode) {
     activeSide = Math.random() > 0.5 ? 'left' : 'right';
     bird.direction = Math.random() > 0.5 ? 1 : -1;
     bird.progress = bird.direction === 1 ? -0.25 : 1.25;
-    bird.active = true;
     
     if (puppetTimer) clearInterval(puppetTimer);
 
@@ -261,24 +265,31 @@ function startMode(mode) {
         setupPuppetMechanism();
     } else {
         puppetActive = false;
-        statusText.innerText = "🔥 火鳥進場中！觀察前 2 個字預判走位！";
+        bird.active = true; // [FEATURE FIX] 純看字模式下火鳥立刻巡航進場
+        setSafeStatusText("🔥 火鳥進場中！觀察前 2 個字預判走位！");
     }
 }
 
 function setupPuppetMechanism() {
     puppetActive = true;
+    bird.active = false; // [LOGIC FIX] 先暫停火鳥飛行，等待拉線倒數同步
     const arrows = ['⬆', '⬇', '⬅', '➡'];
     const arrowTypes = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
     let idx = Math.floor(Math.random() * 4);
     puppetArrow = arrowTypes[idx];
     puppetCountdown = 5;
 
-    statusText.innerText = `傀儡の旋律！位移【 ${arrows[idx]} 】倒數 5 秒！貼緊中場洞邊！`;
+    setSafeStatusText(`傀儡の旋律！位移【 ${arrows[idx]} 】倒數 5 秒！貼緊中場洞邊！`);
+
+    // [LOGIC FIX] 延遲 2.5 秒啟動火鳥，使強制位移結束與撞擊第一顆符文爆破精準重合
+    setTimeout(() => {
+        if (isPlaying) bird.active = true;
+    }, 2500);
 
     puppetTimer = setInterval(() => {
         puppetCountdown--;
         if (puppetCountdown > 0) {
-            statusText.innerText = `傀儡の旋律！位移【 ${arrows[idx]} 】倒數 ${puppetCountdown} 秒！`;
+            setSafeStatusText(`傀儡の旋律！位移【 ${arrows[idx]} 】倒數 ${puppetCountdown} 秒！`);
         } else {
             clearInterval(puppetTimer);
             executePuppetDash();
@@ -288,7 +299,7 @@ function setupPuppetMechanism() {
 
 function executePuppetDash() {
     if (!isPlaying) return;
-    statusText.innerText = "💥 傀儡強制位移發動！";
+    setSafeStatusText("💥 傀儡強制位移發動！");
     let dashDistance = 115;
     
     let interval = setInterval(() => {
@@ -362,7 +373,7 @@ function updateBirdAndCollisions() {
                 }
 
                 if (currentMode === 'normal') {
-                    statusText.innerText = "💥 撞擊符文，象限引爆！注意橫跳！";
+                    setSafeStatusText("💥 撞擊符文，象限引爆！注意橫跳！");
                 }
             }
         }
@@ -384,7 +395,7 @@ function updateParticles() {
 function finishRound() {
     if (isPlaying) {
         streak++;
-        statusText.innerText = `🎉 成功迴避！連勝紀錄：${streak} 次！`;
+        setSafeStatusText(`🎉 成功迴避！連勝紀錄：${streak} 次！`);
         setTimeout(() => startMode(currentMode), 2500);
     }
 }
@@ -393,7 +404,8 @@ function checkExplosionCollision(quadIndex) {
     if (!isPlaying) return;
     let pQuad = getPlayerQuadrant();
     if (pQuad === quadIndex) {
-        gameOver("💥 踩到「" + quadChars[quadIndex] + "」字地圖爆破，遭朱雀神火擊殺！");
+        let hitChar = String(quadChars[quadIndex] || '');
+        gameOver(`💥 踩到「${hitChar}」字地圖爆破，遭朱雀神火擊殺！`);
     }
 }
 
@@ -429,7 +441,7 @@ function updatePlayer() {
 function gameOver(reason) {
     isPlaying = false;
     streak = 0;
-    statusText.innerText = reason + " (點擊模式按鈕重試)";
+    setSafeStatusText(`${reason} (點擊模式按鈕重試)`);
     if (puppetTimer) clearInterval(puppetTimer);
 }
 
