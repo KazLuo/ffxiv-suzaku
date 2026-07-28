@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>FFXIV 幻朱雀殲滅戰</title>
+    <title>FFXIV 幻朱雀殲滅戰(1.0ver)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+TC:wght@600;900&display=swap');
 
@@ -136,10 +136,10 @@
     </div>
 
     <div class="instructions">
-        <h3>⚔️ 雙階段火鳥動態說明：</h3>
+        <h3>⚔️ 真實視覺還原說明：</h3>
         <ul>
-            // <li><b>巡航與俯衝連鎖：</b>外圈火鳥觸發符文時，會產生<b>第二隻火鳥從符文俯衝向場內中央</b>，衝擊場地爆發火光！</li>
-            <li><b>真實前搖預判：</b>從 12/6 點鐘進場開始即可預判第一個字的爆破順序。</li>
+            <li><b>撞擊直出爆破：</b>巡航火鳥撞擊外圈符文瞬間，對應的文字象限地板直接噴發朱雀神火！</li>
+            <li><b>12/6點鐘前搖進場：</b>火鳥於頂/底端生成滑行進場，時間軸完美對齊遊戲 1.8 秒節奏。</li>
             <li><b>傀儡逃課技巧：</b>貼緊中央死區邊緣，將頭頂位移箭頭指向預定安全區即可精準過場！</li>
         </ul>
     </div>
@@ -169,13 +169,10 @@ let bird = {
     x: 0,
     y: 0,
     progress: -0.25,
-    speed: 0.0016,
+    speed: 0.00095,
     active: false,
     direction: 1
 };
-
-// 第二階段：從符文俯衝向場內的火鳥陣列
-let diveBirds = [];
 
 let particles = [];
 let isPlaying = false;
@@ -220,7 +217,6 @@ function startMode(mode) {
     player.y = CENTER_Y - 110;
     explodedQuads = [false, false, false, false];
     particles = [];
-    diveBirds = [];
     
     quadChars = [...baseChars].sort(() => Math.random() - 0.5);
     
@@ -265,7 +261,7 @@ function startMode(mode) {
         setupPuppetMechanism();
     } else {
         puppetActive = false;
-        statusText.innerText = "🔥 火鳥於頂/底端進場！速看第一個字預備！";
+        statusText.innerText = "🔥 火鳥進場中！觀察前 2 個字預判走位！";
     }
 }
 
@@ -348,67 +344,29 @@ function updateBirdAndCollisions() {
             if (dist < 18) {
                 rune.triggered = true;
                 rune.active = true;
-                createFireParticles(rune.x, rune.y, 10);
+                createFireParticles(rune.x, rune.y, 15);
                 
-                // 觸發符文時：生成第二隻從符文「俯衝向場內」的火鳥
                 let targetQuad = quadChars.indexOf(rune.char);
-                diveBirds.push({
-                    startX: rune.x,
-                    startY: rune.y,
-                    x: rune.x,
-                    y: rune.y,
-                    targetQuad: targetQuad,
-                    progress: 0,
-                    speed: 0.06 // 俯衝飛行速度
-                });
+                if (targetQuad !== -1) {
+                    // Server Snapshot 0.25 秒判定
+                    setTimeout(() => {
+                        checkExplosionCollision(targetQuad);
+                    }, 250);
 
-                if (currentMode === 'normal') {
-                    statusText.innerText = "💥 火鳥撞擊符文，火鳥俯衝引爆炸彈！";
+                    explodedQuads[targetQuad] = true;
+                    
+                    setTimeout(() => {
+                        explodedQuads[targetQuad] = false;
+                        rune.active = false;
+                    }, 850);
                 }
 
-                setTimeout(() => {
-                    rune.active = false;
-                }, 850);
+                if (currentMode === 'normal') {
+                    statusText.innerText = "💥 撞擊符文，象限引爆！注意橫跳！";
+                }
             }
         }
     });
-}
-
-// 更新俯衝火鳥動態與爆炸觸發
-function updateDiveBirds() {
-    for (let i = diveBirds.length - 1; i >= 0; i--) {
-        let db = diveBirds[i];
-        db.progress += db.speed;
-        
-        // 直線向場地中央 (CENTER_X, CENTER_Y) 俯衝
-        db.x = db.startX + (CENTER_X - db.startX) * db.progress;
-        db.y = db.startY + (CENTER_Y - db.startY) * db.progress;
-
-        if (Math.random() > 0.3) {
-            createFireParticles(db.x, db.y, 1);
-        }
-
-        // 當俯衝火鳥進入場地邊界 (progress >= 0.35) 觸發地板爆破
-        if (db.progress >= 0.35 && db.targetQuad !== -1 && !explodedQuads[db.targetQuad]) {
-            let targetQuad = db.targetQuad;
-            
-            setTimeout(() => {
-                checkExplosionCollision(targetQuad);
-            }, 250);
-
-            explodedQuads[targetQuad] = true;
-            createFireParticles(db.x, db.y, 15);
-
-            setTimeout(() => {
-                explodedQuads[targetQuad] = false;
-            }, 800);
-        }
-
-        // 俯衝抵達場內後消失
-        if (db.progress >= 0.7) {
-            diveBirds.splice(i, 1);
-        }
-    }
 }
 
 function updateParticles() {
@@ -577,19 +535,7 @@ function draw() {
     drawRunes(leftRunes);
     drawRunes(rightRunes);
 
-    // 5. 繪製俯衝火鳥
-    diveBirds.forEach(db => {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(db.x, db.y, 9, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffaa00';
-        ctx.shadowColor = '#ff4500';
-        ctx.shadowBlur = 15;
-        ctx.fill();
-        ctx.restore();
-    });
-
-    // 6. 粒子效果繪製
+    // 5. 粒子效果繪製
     particles.forEach(p => {
         ctx.save();
         ctx.beginPath();
@@ -602,7 +548,7 @@ function draw() {
         ctx.restore();
     });
 
-    // 7. 傀儡連線 (FF14 動態雷光魔力線)
+    // 6. 傀儡連線 (FF14 動態雷光魔力線)
     if (isPlaying && puppetActive) {
         ctx.save();
         ctx.beginPath();
@@ -627,7 +573,7 @@ function draw() {
         ctx.restore();
     }
 
-    // 8. 金色巡航火鳥 (帶頂底進場軌道與光暈)
+    // 7. 金色巡航火鳥 (帶頂底進場軌道與光暈)
     if (isPlaying && bird.active) {
         ctx.save();
         ctx.beginPath();
@@ -645,7 +591,7 @@ function draw() {
         ctx.restore();
     }
 
-    // 9. 玩家 (FF14 戰鬥水藍指示光點)
+    // 8. 玩家 (FF14 戰鬥水藍指示光點)
     ctx.save();
     ctx.beginPath();
     ctx.arc(player.x, player.y, player.radius, 0, 2 * Math.PI);
@@ -659,7 +605,6 @@ function draw() {
     ctx.restore();
 
     updateBirdAndCollisions();
-    updateDiveBirds();
     updateParticles();
     updatePlayer();
     requestAnimationFrame(draw);
